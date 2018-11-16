@@ -1,77 +1,81 @@
 <html>
   <head>
     <title>Body Scroll Lock</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
     <style>
       body {
-        text-align: center;
         margin: 0;
         padding: 0;
       }
       #buttons {
         position: fixed;
+        top: 0;
+        right: 0;
         z-index: 2;
       }
       button {
-        height: 50px;
+        height: 40px;
         width: 100px;
+        margin: 10px 10px 0 0;
       }
       #overlay {
         position: fixed;
-        top: 10%;
-        left: 10%;
-        right: 10%;
-        bottom: 10%;
+        top: 100px;
+        left: 20px;
+        right: 20px;
+        bottom: 20px;
         z-index: 1;
-        overflow-y: scroll;
-        background: white;
+        background-color: #efe;
       }
-      .content > div {
-        height: 20%;
-        margin: 0 0 20px;
-        background-color: rgba(0, 0, 0, 0.2);
-      }
-      #nested-scroll {
-        position: relative;
-        overflow-y: scroll;
-        background-color: white;
+      #nested {
+        position: absolute;
+        top: 100px;
+        left: 20px;
+        right: 20px;
+        height: 200px;
+        background-color: #eef;
       }
       h3 {
         position: absolute;
         top: 10px;
-        left: 0;
-        width: 100%;
+        left: 20px;
+      }
+      .scrollable {
+        overflow: scroll;
+        background-color: white;
+        background-image: repeating-linear-gradient(
+            transparent,
+            transparent 19px,
+            lightgray 19px,
+            lightgray 20px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 19px,
+            lightgray 19px,
+            lightgray 20px
+          );
+          background-attachment: local;
+      }
+      .scrollable:after {
+        content: '';
+        display: block;
+        height: 110%;
+        width: 110%;
       }
     </style>
   </head>
-  <body>
+  <body class="scrollable">
     <div id="buttons">
-      <button id="disable">Disable</button> <button id="enable">Enable</button>
+      <button id="disable">Disable Scroll</button> <button id="enable">Enable Scroll</button>
     </div>
     <h3>Body</h3>
-    <div class="content">
-      <div></div>
-      <div></div>
-      <div></div>
-      <div></div>
-      <div></div>
-    </div>
-    <div id="overlay">
+    <div id="overlay" class="scrollable">
       <h3>Overlay</h3>
-      <div class="content">
-        <div></div>
-        <div id="nested-scroll">
-          <h3>Nested Scroll</h3>
-          <div class="content">
-            <div></div>
-            <div></div>
-            <div></div>
-            <div></div>
-            <div></div>
-          </div>
+        <div id="nested" class="scrollable">
+          <h3>Nested</h3>
         </div>
-        <div></div>
-        <div></div>
-        <div></div>
       </div>
     </div>
     <script type="text/javascript">
@@ -85,6 +89,10 @@
       document.getElementById('enable').addEventListener('click', function() {
         module.exports.enableBodyScroll(document.getElementById('overlay'));
       });
+      document.body.scrollLeft = 15
+      document.body.scrollTop = 5
+      module.exports.disableBodyScroll(document.getElementById('overlay'));
+      // setTimeout(() => document.location.reload(), 9.5 * 1000 + Date.now() % 1000)
     </script>
   </body>
 </html>

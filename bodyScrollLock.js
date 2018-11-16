@@ -8,102 +8,33 @@ var isIosDevice =
   window.navigator.platform &&
   /iP(ad|hone|od)/.test(window.navigator.platform);
 
-// iOS 9 and below don't support event options (We only need this for iOS).
-var isOldIos =
-  isIosDevice && Number(window.navigator.userAgent.match(/OS (\d+)_/)[2]) < 10;
-var listenerOptions = isOldIos ? undefined : { passive: false };
+var body = typeof document !== 'undefined' && document.body;
+var documentElement =
+  typeof document !== 'undefined' && document.documentElement;
 
 var allElements = [];
-var lastClientY;
-var previousOverflow;
-var previousPaddingRight;
-var timeoutId;
+var previousStyles;
+var scrollTop;
+var scrollLeft;
 var reserveScrollBarGap;
+var backgroundElement;
 
-// Setting overflow on body/documentElement synchronously in Desktop Safari slows down
-// the responsiveness for some reason. Setting within a setTimeout fixes this.
-function defer(fn) {
-  // Always remove any existing timeout, we only want the latest.
-  window.clearTimeout(timeoutId);
-  timeoutId = setTimeout(fn);
-}
-
-function lockBody() {
-  // Already called, do not continue.
-  if (previousOverflow !== undefined) return;
-
-  var scrollBarGap = window.innerWidth - document.documentElement.clientWidth;
-
-  if (reserveScrollBarGap && scrollBarGap > 0) {
-    var newPaddingRight =
-      scrollBarGap +
-      parseFloat(
-        window
-          .getComputedStyle(document.body, null)
-          .getPropertyValue('padding-right')
-      );
-    previousPaddingRight = document.body.style.paddingRight;
-    document.body.style.paddingRight = newPaddingRight + 'px';
-  }
-
-  previousOverflow = document.body.style.overflow;
-  document.body.style.overflow = 'hidden';
-}
-
-function resetBody() {
-  if (previousPaddingRight !== undefined) {
-    document.body.style.paddingRight = previousPaddingRight;
-    previousPaddingRight = undefined;
-  }
-
-  if (previousOverflow !== undefined) {
-    document.body.style.overflow = previousOverflow;
-    previousOverflow = undefined;
+function setStyle(style, newStyle) {
+  for (var v in newStyle) {
+    if (newStyle[v] !== undefined) style[v] = newStyle[v];
   }
 }
 
-function handleRootTouchMove(event) {
-  // Do not prevent if the event has more than one touch.
-  // Usually meaning this is a multi touch gesture like pinch to zoom.
-  if (event.touches.length > 1) return;
-
-  event.preventDefault();
-}
-
-function handleElementTouchStart(event) {
-  if (event.targetTouches.length !== 1) return;
-  lastClientY = event.targetTouches[0].clientY;
-}
-
-function handleElementTouchMove(event) {
-  if (event.targetTouches.length !== 1) return;
-
-  var currentClientY = event.targetTouches[0].clientY;
-  var diffClientY = currentClientY - lastClientY;
-  lastClientY = currentClientY;
-
-  if (diffClientY === 0 || isNaN(diffClientY)) return;
-
-  var rootElement = event.currentTarget;
-  var element = event.target;
-
-  while (element !== rootElement.parentNode) {
-    if (
-      // Scrolling up.
-      (diffClientY > 0 &&
-        // Element has room to scroll up.
-        element.scrollTop > 0) ||
-      // Scrolling down.
-      (diffClientY < 0 &&
-        // Element has room to scroll down.
-        element.scrollHeight - element.scrollTop > element.clientHeight)
-    ) {
-      // Prevent propagation to body listener.
-      event.stopPropagation();
-      break;
-    }
-    element = element.parentNode;
-  }
+function getStyle(style) {
+  return {
+    overflow: style.overflow,
+    position: style.position,
+    top: style.top,
+    left: style.left,
+    width: style.width,
+    height: style.height,
+    paddingRight: style.paddingRight,
+  };
 }
 
 function disableBodyScroll(element, options) {
@@ -118,29 +49,58 @@ function disableBodyScroll(element, options) {
 
   var firstElement = allElements.length === 1;
 
-  if (isIosDevice) {
-    element.addEventListener(
-      'touchstart',
-      handleElementTouchStart,
-      listenerOptions
-    );
-    element.addEventListener(
-      'touchmove',
-      handleElementTouchMove,
-      listenerOptions
-    );
+  if (!firstElement) return;
 
-    if (firstElement) {
-      document.addEventListener(
-        'touchmove',
-        handleRootTouchMove,
-        listenerOptions
-      );
-    }
+  // Already called, do not continue.
+  if (previousStyles !== undefined) return;
+
+  if (isIosDevice) {
+    previousStyles = [getStyle(body.style)];
+    scrollTop = body.scrollTop;
+    scrollLeft = body.scrollLeft;
+
+    // Create a background element to cover buggy original.
+    backgroundElement = document.createElement('div');
+    setStyle(backgroundElement.style, {
+      zIndex: -1,
+      position: 'fixed',
+      width: body.scrollWidth,
+      height: body.scrollHeight,
+      top: -scrollTop + 'px',
+      left: -scrollLeft + 'px',
+      backgroundColor: window
+        .getComputedStyle(body, null)
+        .getPropertyValue('background-color'),
+      backgroundImage: window
+        .getComputedStyle(body, null)
+        .getPropertyValue('background-image'),
+    });
+    body.appendChild(backgroundElement);
+
+    setStyle(body.style, {
+      position: 'fixed',
+      width: body.scrollWidth,
+      height: body.scrollHeight,
+      top: -scrollTop + 'px',
+      left: -scrollLeft + 'px',
+    });
   } else {
-    if (firstElement) {
-      defer(lockBody);
-    }
+    previousStyles = [getStyle(body.style)];
+    var scrollBarGap = window.innerWidth - documentElement.clientWidth;
+
+    setStyle(body.style, {
+      overflow: 'hidden',
+      paddingRight:
+        reserveScrollBarGap && scrollBarGap > 0
+          ? scrollBarGap +
+            parseFloat(
+              window
+                .getComputedStyle(body, null)
+                .getPropertyValue('padding-right')
+            ) +
+            'px'
+          : undefined,
+    });
   }
 }
 
@@ -156,31 +116,19 @@ function enableBodyScroll(element) {
 
   var lastElement = allElements.length === 0;
 
-  if (isIosDevice) {
-    element.removeEventListener(
-      'touchstart',
-      handleElementTouchStart,
-      listenerOptions
-    );
-    element.removeEventListener(
-      'touchmove',
-      handleElementTouchMove,
-      listenerOptions
-    );
+  if (!lastElement) return;
 
-    if (lastElement) {
-      document.removeEventListener(
-        'touchmove',
-        handleRootTouchMove,
-        listenerOptions
-      );
-      lastClientY = undefined;
-    }
+  if (previousStyles === undefined) return;
+
+  if (isIosDevice) {
+    setStyle(body.style, previousStyles[0]);
+    body.removeChild(backgroundElement);
+    body.scrollTop = scrollTop;
+    body.scrollLeft = scrollLeft;
   } else {
-    if (lastElement) {
-      defer(resetBody);
-    }
+    setStyle(body.style, previousStyles[0]);
   }
+  previousStyles = undefined;
 }
 
 function clearAllBodyScrollLocks() {
